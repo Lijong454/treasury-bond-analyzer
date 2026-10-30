@@ -1,0 +1,10 @@
+{
+  "name": "treasury-bond-analyzer",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test tests/*.test.mjs",
+    "data": "python3 scripts/fetch_data.py",
+    "serve": "python3 -m http.server 8000"
+  }
+}

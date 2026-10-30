@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>미국채 투자 분석기</title>
+  <meta name="description" content="미국 국채 직접투자의 원화 기준 수익률, 환율·금리 시나리오, 세후 수익, 수익률 곡선을 분석합니다.">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%231c5cab'/><path d='M7 22 L13 15 L18 18 L25 9' stroke='white' stroke-width='3' fill='none' stroke-linecap='round' stroke-linejoin='round'/></svg>">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header class="top">
+    <div class="wrap top-inner">
+      <div class="brand">
+        <h1>미국채 투자 분석기</h1>
+        <p>원화로 투자하는 미국 국채의 세후 수익률·환율·금리 시나리오</p>
+      </div>
+      <div class="market" id="market" aria-live="polite">
+        <div class="mk"><span>USD/KRW</span><b id="mkFx">-</b><small id="mkFxDate"></small></div>
+        <div class="mk"><span>2년</span><b id="mk2y">-</b><small id="mk2yChg"></small></div>
+        <div class="mk"><span>10년</span><b id="mk10y">-</b><small id="mk10yChg"></small></div>
+        <div class="mk"><span>30년</span><b id="mk30y">-</b><small id="mk30yChg"></small></div>
+        <div class="mk"><span>10Y−2Y</span><b id="mkSpread">-</b><small id="mkCurveDate"></small></div>
+      </div>
+    </div>
+    <nav class="wrap tabs" role="tablist">
+      <button role="tab" class="tab active" data-tab="analyze" aria-selected="true">채권 분석</button>
+      <button role="tab" class="tab" data-tab="scenario" aria-selected="false">금리·환율 시나리오</button>
+      <button role="tab" class="tab" data-tab="curve" aria-selected="false">수익률 곡선</button>
+      <button role="tab" class="tab" data-tab="portfolio" aria-selected="false">포트폴리오 <span class="badge" id="pfCount">0</span></button>
+      <button role="tab" class="tab" data-tab="guide" aria-selected="false">안내</button>
+    </nav>
+  </header>
+
+  <div class="wrap notice hidden" id="dataNotice"></div>
+
+  <main class="wrap">
+    <!-- ================= 채권 분석 ================= -->
+    <section class="panel active" id="tab-analyze" role="tabpanel">
+      <div class="grid-2">
+        <form class="card form" id="bondForm" autocomplete="off" onsubmit="return false">
+          <h2>채권 정보</h2>
+
+          <label class="field search">
+            <span>종목 검색 <em>CUSIP · 만기연도 · 쿠폰</em></span>
+            <input type="search" id="search" placeholder="예: 91282C, 2035, 4.25">
+            <ul class="suggest hidden" id="suggest" role="listbox"></ul>
+          </label>
+          <div class="picked hidden" id="picked"></div>
+
+          <div class="row-2">
+            <label class="field"><span>매수(결제)일</span><input type="date" id="settle" required></label>
+            <label class="field"><span>만기일</span><input type="date" id="maturity" required></label>
+          </div>
+          <div class="row-2">
+            <label class="field"><span>쿠폰 (연 %)</span><input type="number" id="coupon" step="0.001" min="0" required></label>
+            <label class="field"><span>액면 총액 (USD)</span><input type="number" id="face" step="100" min="100" required></label>
+          </div>
+
+          <div class="field">
+            <span>매수 가격</span>
+            <div class="seg" role="radiogroup">
+              <label><input type="radio" name="priceMode" value="price" checked> 가격 (액면 100당)</label>
+              <label><input type="radio" name="priceMode" value="yield"> 수익률 (%)</label>
+            </div>
+            <div class="inline">
+              <input type="number" id="priceInput" step="0.0001" required>
+              <button type="button" class="btn ghost" id="fromCurve" title="오늘 수익률 곡선에서 잔존만기에 맞는 수익률을 보간">곡선으로 추정</button>
+            </div>
+            <small class="hint" id="priceHint"></small>
+          </div>
+
+          <h3>원화·비용</h3>
+          <div class="row-2">
+            <label class="field"><span>매수 환율 (원/$)</span><input type="number" id="fxBuy" step="0.1" required></label>
+            <label class="field"><span>만기 시 예상 환율</span><input type="number" id="fxExit" step="0.1" required></label>
+          </div>
+          <div class="row-3">
+            <label class="field"><span>환전 스프레드 (원)</span><input type="number" id="fxSpread" step="0.1" min="0"></label>
+            <label class="field"><span>매매 수수료 (%)</span><input type="number" id="commission" step="0.01" min="0"></label>
+            <label class="field"><span>이자소득세 (%)</span><input type="number" id="taxRate" step="0.1" min="0"></label>
+          </div>
+          <label class="field"><span>다른 금융소득 (연, 원) <em>금융소득종합과세 점검용</em></span><input type="number" id="otherIncome" step="100000" min="0"></label>
+
+          <div class="actions">
+            <button type="button" class="btn primary" id="addPf">포트폴리오에 추가</button>
+            <button type="button" class="btn ghost" id="resetForm">초기화</button>
+          </div>
+          <p class="error hidden" id="formError" role="alert"></p>
+        </form>
+
+        <div class="results" id="results">
+          <div class="kpis">
+            <div class="kpi"><span>투자 원금</span><b id="kInvest">-</b><small id="kInvestUsd"></small></div>
+            <div class="kpi"><span>달러 만기수익률 (YTM)</span><b id="kYtm">-</b><small id="kYtmNote">반기복리</small></div>
+            <div class="kpi accent"><span>원화 세후 연수익률</span><b id="kIrr">-</b><small id="kIrrPre"></small></div>
+            <div class="kpi"><span>손익분기 환율</span><b id="kBe">-</b><small id="kBeNote"></small></div>
+          </div>
+
+          <div class="card">
+            <h2>원화 손익 분해 <small id="horizonLabel"></small></h2>
+            <div class="breakdown" id="breakdown"></div>
+            <dl class="facts" id="facts"></dl>
+          </div>
+
+          <div class="card">
+            <h2>만기 환율 시나리오 <small>환율 외 조건은 동일</small></h2>
+            <div class="table-wrap"><table class="tbl" id="fxTable"></table></div>
+          </div>
+
+          <div class="card">
+            <h2>연도별 이자소득과 금융소득종합과세</h2>
+            <p class="muted small">이자·배당 등 금융소득이 연 2,000만 원을 넘으면 초과분은 다른 소득과 합산해 누진세율로 과세됩니다. 아래는 이 채권의 연도별 이표(원화 환산)와 입력한 다른 금융소득을 합친 값입니다.</p>
+            <div class="table-wrap"><table class="tbl" id="yearTable"></table></div>
+          </div>
+
+          <details class="card">
+            <summary><h2>현금흐름 상세</h2></summary>
+            <div class="table-wrap"><table class="tbl" id="cfTable"></table></div>
+          </details>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= 시나리오 ================= -->
+    <section class="panel" id="tab-scenario" role="tabpanel">
+      <div class="card">
+        <h2>중도 매도 시나리오 <small id="scBond"></small></h2>
+        <p class="muted small">'채권 분석' 탭의 채권을 매도일에 시장 수익률이 바뀐 상태로 판다고 가정합니다. 기준 수익률은 매수 YTM입니다.</p>
+        <div class="row-4">
+          <label class="field"><span>매도일</span><input type="date" id="scExit"></label>
+          <label class="field"><span>매도 시 환율 (원/$)</span><input type="number" id="scFx" step="0.1"></label>
+          <label class="field"><span>수익률 변화 (bp)</span><input type="range" id="scShift" min="-300" max="300" step="25" value="0"><output id="scShiftOut">0bp</output></label>
+          <div class="field"><span>선택 시나리오 결과</span><div class="scout" id="scOut">-</div></div>
+        </div>
+      </div>
+
+      <div class="grid-2 sc">
+        <div class="card">
+          <h2>가격-수익률 곡선 <small>볼록성(컨벡시티)</small></h2>
+          <div class="chart-box"><canvas id="pyChart" aria-label="수익률 변화에 따른 채권 가격"></canvas></div>
+          <p class="muted small" id="pyNote"></p>
+        </div>
+        <div class="card">
+          <h2>금리 변동별 결과</h2>
+          <div class="table-wrap"><table class="tbl" id="rateTable"></table></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>금리 × 환율 매트릭스 <small>원화 세후 총수익률, 매도일 기준</small></h2>
+        <div class="table-wrap"><table class="tbl heat" id="matrix"></table></div>
+        <div class="legend-div"><span>손실</span><i class="ramp"></i><span>이익</span></div>
+      </div>
+    </section>
+
+    <!-- ================= 수익률 곡선 ================= -->
+    <section class="panel" id="tab-curve" role="tabpanel">
+      <div class="card">
+        <div class="card-head">
+          <h2>미 국채 수익률 곡선 <small id="curveDate"></small></h2>
+          <div class="chips" id="curveCompare">
+            <label><input type="checkbox" value="7" checked> 1주 전</label>
+            <label><input type="checkbox" value="30" checked> 1개월 전</label>
+            <label><input type="checkbox" value="90"> 3개월 전</label>
+            <label><input type="checkbox" value="365" checked> 1년 전</label>
+            <label class="custom">비교일 <input type="date" id="curveCustom"></label>
+          </div>
+        </div>
+        <div class="chart-box tall"><canvas id="curveChart" aria-label="수익률 곡선"></canvas></div>
+        <div class="table-wrap"><table class="tbl" id="curveTable"></table></div>
+      </div>
+
+      <div class="card">
+        <div class="card-head">
+          <h2>금리 추이</h2>
+          <div class="chips" id="histRange">
+            <label><input type="radio" name="hr" value="90"> 3개월</label>
+            <label><input type="radio" name="hr" value="365" checked> 1년</label>
+            <label><input type="radio" name="hr" value="1095"> 3년</label>
+          </div>
+        </div>
+        <div class="chart-box"><canvas id="histChart" aria-label="2년·10년·30년 금리 추이"></canvas></div>
+      </div>
+
+      <div class="grid-2 even">
+        <div class="card">
+          <h2>장단기 금리차 (10년 − 2년)</h2>
+          <div class="chart-box"><canvas id="spreadChart" aria-label="10년-2년 금리차"></canvas></div>
+        </div>
+        <div class="card">
+          <h2>USD/KRW 환율</h2>
+          <div class="chart-box"><canvas id="fxChart" aria-label="원달러 환율 추이"></canvas></div>
+        </div>
+      </div>
+      <p class="muted small" id="curveSource"></p>
+    </section>
+
+    <!-- ================= 포트폴리오 ================= -->
+    <section class="panel" id="tab-portfolio" role="tabpanel">
+      <div class="card">
+        <div class="card-head">
+          <h2>보유 채권</h2>
+          <div class="actions">
+            <button class="btn ghost" id="pfExport">내보내기 (JSON)</button>
+            <label class="btn ghost">가져오기<input type="file" id="pfImport" accept="application/json" hidden></label>
+            <button class="btn danger" id="pfClear">전체 삭제</button>
+          </div>
+        </div>
+        <p class="muted small">이 브라우저에만 저장됩니다. 다른 기기에서 쓰려면 내보내기 후 가져오기를 하세요.</p>
+        <div class="table-wrap"><table class="tbl" id="pfTable"></table></div>
+      </div>
+
+      <div class="kpis" id="pfKpis"></div>
+
+      <div class="grid-2 even">
+        <div class="card">
+          <h2>연도별 현금흐름 (USD)</h2>
+          <div class="chart-box"><canvas id="pfCfChart" aria-label="연도별 이자와 원금 상환"></canvas></div>
+        </div>
+        <div class="card">
+          <h2>연도별 이자소득 (원화, 현재 환율 환산)</h2>
+          <div class="chart-box"><canvas id="pfTaxChart" aria-label="연도별 이자소득과 2천만원 기준선"></canvas></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= 안내 ================= -->
+    <section class="panel" id="tab-guide" role="tabpanel">
+      <div class="card prose">
+        <h2>계산 방법</h2>
+        <ul>
+          <li><b>가격·수익률</b>: 미 국채 관행(반기 이표, 반기 복리, 경과이자 Actual/Actual)으로 계산합니다. 가격은 액면 100당 clean price이며, 실제 결제금액에는 경과이자가 더해집니다.</li>
+          <li><b>원화 수익률</b>: 매수일부터 회수일까지 환율이 입력한 두 값 사이를 직선으로 움직인다고 보고, 이표는 받는 날 바로 원화로 바꾼다고 가정한 연환산 내부수익률(IRR)입니다.</li>
+          <li><b>환전 스프레드</b>: 달러를 살 때는 기준환율 + 스프레드, 팔 때는 기준환율 − 스프레드로 계산합니다.</li>
+          <li><b>수수료</b>: 매수 금액과 중도 매도 금액에 적용합니다(만기 상환에는 적용하지 않음). 증권사 장외채권은 수수료가 가격에 포함된 경우가 많으니 이때는 0으로 두세요.</li>
+        </ul>
+        <h2>세금 가정 (한국 거주 개인, 일반 계좌)</h2>
+        <ul>
+          <li><b>이자(이표)</b>: 이자소득세 15.4%(소득세 14% + 지방소득세 1.4%)를 원천징수합니다. 보유기간 이자만 과세된다고 보고, 매수 때 낸 경과이자는 첫 이표에서 빼고 매도 때 받은 경과이자는 과세합니다.</li>
+          <li><b>매매차익·환차익</b>: 개인의 채권 매매차익과 환차익은 비과세로 계산합니다. 금융투자소득세는 2024년 말 폐지되었습니다.</li>
+          <li><b>금융소득종합과세</b>: 이자·배당 합계가 연 2,000만 원을 넘으면 초과분이 종합과세됩니다. 이 앱은 초과 여부만 알려 주고 추가 세액은 계산하지 않습니다.</li>
+          <li>ISA·연금 계좌, 법인, 비거주자에게는 다른 규칙이 적용됩니다. 실제 과세는 증권사와 세무 전문가에게 확인하세요.</li>
+        </ul>
+        <h2>데이터 출처</h2>
+        <ul id="sourceList">
+          <li>수익률 곡선: <a href="https://home.treasury.gov/resource-center/data-chart-center/interest-rates/TextView?type=daily_treasury_yield_curve" target="_blank" rel="noopener">U.S. Treasury — Daily Treasury Par Yield Curve Rates</a></li>
+          <li>국채 종목(CUSIP·쿠폰·만기·경매 결과): <a href="https://fiscaldata.treasury.gov/datasets/treasury-securities-auctions-data/" target="_blank" rel="noopener">U.S. Treasury Fiscal Data — Treasury Securities Auctions Data</a></li>
+          <li>환율: <a href="https://frankfurter.dev/" target="_blank" rel="noopener">Frankfurter (유럽중앙은행 기준환율)</a>, <a href="https://www.exchangerate-api.com/docs/free" target="_blank" rel="noopener">ExchangeRate-API</a></li>
+        </ul>
+        <p>데이터는 GitHub Actions가 평일마다 자동으로 받아 옵니다. 수익률 곡선은 지표물 기준 시장 수익률이고, '곡선으로 추정'은 이를 잔존만기에 맞춰 보간한 값이라 실제 종목 호가와 다를 수 있습니다.</p>
+        <p class="disclaimer">이 도구는 정보 제공용 계산기이며 투자 권유가 아닙니다. 실제 매수 가격·수수료·세금은 거래하는 증권사의 조건을 확인하세요.</p>
+        <p class="muted small" id="dataStamp"></p>
+      </div>
+    </section>
+  </main>
+
+  <footer class="wrap foot">
+    <span>미국채 투자 분석기</span>
+    <a href="https://github.com/Lijong454/treasury-bond-analyzer" target="_blank" rel="noopener">GitHub</a>
+  </footer>
+
+  <div class="tip hidden" id="tip" role="tooltip"></div>
+  <script src="vendor/chart.umd.min.js"></script>
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
