@@ -202,7 +202,8 @@ details[open].card summary { margin-bottom: 12px; }
   .mk { flex: 1; min-width: 0; padding: 4px 8px; }
   .mk b { font-size: 15px; }
   .top { position: static; }
-  .bd-row { grid-template-columns: 64px 1fr 150px; font-size: 13px; }
+  .bd-row { grid-template-columns: 74px 1fr 140px; font-size: 13px; }
+  .bd-row .lbl { white-space: nowrap; }
   .bd-row .val small { display: none; }
   .kpi b { font-size: 20px; }
   .chart-box { height: 240px; }
